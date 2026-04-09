@@ -33,7 +33,9 @@ type mouseInput struct {
 
 type input struct {
 	rType uint32
+	// Keep INPUT.type followed by pointer-sized alignment, matching WinAPI layout.
 	_     [unsafe.Sizeof(uintptr(0)) - unsafe.Sizeof(uint32(0))]byte
+	// INPUT is a C union (MOUSEINPUT/KEYBDINPUT/HARDWAREINPUT); use max member size.
 	data  [unsafe.Sizeof(mouseInput{})]byte
 }
 
