@@ -22,9 +22,19 @@ type keybdInput struct {
 	dwExtraInfo uintptr
 }
 
+type mouseInput struct {
+	dx          int32
+	dy          int32
+	mouseData   uint32
+	dwFlags     uint32
+	time        uint32
+	dwExtraInfo uintptr
+}
+
 type input struct {
 	rType uint32
-	ki    keybdInput
+	_     [unsafe.Sizeof(uintptr(0)) - unsafe.Sizeof(uint32(0))]byte
+	data  [unsafe.Sizeof(mouseInput{})]byte
 }
 
 var (
@@ -39,19 +49,8 @@ func pressNumberKey(digit rune) error {
 	vk := uint16(vk0 + (digit - '0'))
 
 	inputs := []input{
-		{
-			rType: inputKeyboard,
-			ki: keybdInput{
-				wVk: vk,
-			},
-		},
-		{
-			rType: inputKeyboard,
-			ki: keybdInput{
-				wVk:     vk,
-				dwFlags: keyeventfKeyUp,
-			},
-		},
+		newKeyboardInput(vk, 0),
+		newKeyboardInput(vk, keyeventfKeyUp),
 	}
 
 	ret, _, callErr := sendInputProc.Call(
@@ -67,4 +66,12 @@ func pressNumberKey(digit rune) error {
 	}
 
 	return nil
+}
+
+func newKeyboardInput(vk uint16, flags uint32) input {
+	in := input{rType: inputKeyboard}
+	ki := (*keybdInput)(unsafe.Pointer(&in.data[0]))
+	ki.wVk = vk
+	ki.dwFlags = flags
+	return in
 }
