@@ -15,3 +15,7 @@ go run . -key 1 -interval 3s
 - `-interval`：按键间隔，Go duration 格式，默认 `3s`
 
 按 `Ctrl + C` 退出。
+
+## 常见问题
+
+- Windows 若出现 `SendInput 调用失败: The parameter is incorrect.`，通常是 `INPUT` 结构体大小与 WinAPI 不一致导致。当前实现已按 WinAPI 对齐处理。
