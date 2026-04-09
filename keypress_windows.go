@@ -33,7 +33,7 @@ type mouseInput struct {
 
 type input struct {
 	rType uint32
-	// Keep INPUT.type followed by pointer-sized alignment, matching WinAPI layout.
+	// Padding ensures union data starts at pointer-aligned offset, matching WinAPI INPUT.
 	// On 64-bit this adds 4 bytes (8-4), on 32-bit no padding is needed (4-4=0).
 	_     [unsafe.Sizeof(uintptr(0)) - unsafe.Sizeof(uint32(0))]byte
 	// INPUT is a C union (MOUSEINPUT/KEYBDINPUT/HARDWAREINPUT).
@@ -74,7 +74,7 @@ func pressNumberKey(digit rune) error {
 
 func newKeyboardInput(vk uint16, flags uint32) input {
 	in := input{rType: inputKeyboard}
-	// Write KEYBDINPUT into the INPUT union storage.
+	// Safe: data is sized to the largest INPUT union member (mouseInput), larger than keybdInput.
 	ki := (*keybdInput)(unsafe.Pointer(&in.data[0]))
 	ki.wVk = vk
 	ki.dwFlags = flags
