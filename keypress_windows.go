@@ -54,14 +54,17 @@ func pressNumberKey(digit rune) error {
 		return fmt.Errorf("仅支持数字键 0-9，当前为 %q", string(digit))
 	}
 	vk := uint16(vk0 + (digit - '0'))
-	scanCode := lookupDigitScanCode(vk, digit)
+	scanCode, lookupErr := lookupDigitScanCode(vk, digit)
 	if scanCode == 0 {
+		if lookupErr != nil {
+			return fmt.Errorf("无法获取按键扫描码: %q: %w", string(digit), lookupErr)
+		}
 		return fmt.Errorf("无法获取按键扫描码: %q", string(digit))
 	}
 
 	inputs := []input{
-		newKeyboardInput(0, scanCode, keyeventfScan),
-		newKeyboardInput(0, scanCode, keyeventfScan|keyeventfKeyUp),
+		newKeyboardInput(vk, scanCode, keyeventfScan),
+		newKeyboardInput(vk, scanCode, keyeventfScan|keyeventfKeyUp),
 	}
 
 	ret, _, callErr := sendInputProc.Call(
@@ -89,34 +92,37 @@ func newKeyboardInput(vk uint16, scanCode uint16, flags uint32) input {
 	return in
 }
 
-func lookupDigitScanCode(vk uint16, digit rune) uint16 {
-	sc, _, _ := mapVirtualKeyW.Call(uintptr(vk), uintptr(mapvkVkToVsc))
+func lookupDigitScanCode(vk uint16, digit rune) (uint16, error) {
+	sc, _, callErr := mapVirtualKeyW.Call(uintptr(vk), uintptr(mapvkVkToVsc))
 	if sc != 0 {
-		return uint16(sc)
+		return uint16(sc), nil
 	}
 	// Fallback to standard keyboard top-row digit scan codes.
 	switch digit {
 	case '1':
-		return 0x02
+		return 0x02, nil
 	case '2':
-		return 0x03
+		return 0x03, nil
 	case '3':
-		return 0x04
+		return 0x04, nil
 	case '4':
-		return 0x05
+		return 0x05, nil
 	case '5':
-		return 0x06
+		return 0x06, nil
 	case '6':
-		return 0x07
+		return 0x07, nil
 	case '7':
-		return 0x08
+		return 0x08, nil
 	case '8':
-		return 0x09
+		return 0x09, nil
 	case '9':
-		return 0x0A
+		return 0x0A, nil
 	case '0':
-		return 0x0B
+		return 0x0B, nil
 	default:
-		return 0
+		if callErr != syscall.Errno(0) {
+			return 0, callErr
+		}
+		return 0, nil
 	}
 }
