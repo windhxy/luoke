@@ -11,6 +11,8 @@ import (
 const (
 	inputKeyboard  = 1
 	keyeventfKeyUp = 0x0002
+	keyeventfScan  = 0x0008
+	mapvkVkToVsc   = 0
 	vk0            = 0x30
 )
 
@@ -42,8 +44,9 @@ type input struct {
 }
 
 var (
-	user32DLL     = syscall.NewLazyDLL("user32.dll")
-	sendInputProc = user32DLL.NewProc("SendInput")
+	user32DLL       = syscall.NewLazyDLL("user32.dll")
+	sendInputProc   = user32DLL.NewProc("SendInput")
+	mapVirtualKeyW  = user32DLL.NewProc("MapVirtualKeyW")
 )
 
 func pressNumberKey(digit rune) error {
@@ -51,10 +54,14 @@ func pressNumberKey(digit rune) error {
 		return fmt.Errorf("仅支持数字键 0-9，当前为 %q", string(digit))
 	}
 	vk := uint16(vk0 + (digit - '0'))
+	scanCode := lookupDigitScanCode(vk, digit)
+	if scanCode == 0 {
+		return fmt.Errorf("无法获取按键扫描码: %q", string(digit))
+	}
 
 	inputs := []input{
-		newKeyboardInput(vk, 0),
-		newKeyboardInput(vk, keyeventfKeyUp),
+		newKeyboardInput(0, scanCode, keyeventfScan),
+		newKeyboardInput(0, scanCode, keyeventfScan|keyeventfKeyUp),
 	}
 
 	ret, _, callErr := sendInputProc.Call(
@@ -72,11 +79,44 @@ func pressNumberKey(digit rune) error {
 	return nil
 }
 
-func newKeyboardInput(vk uint16, flags uint32) input {
+func newKeyboardInput(vk uint16, scanCode uint16, flags uint32) input {
 	in := input{rType: inputKeyboard}
 	// Safe: data is sized to the largest INPUT union member (mouseInput), larger than keybdInput.
 	ki := (*keybdInput)(unsafe.Pointer(&in.data[0]))
 	ki.wVk = vk
+	ki.wScan = scanCode
 	ki.dwFlags = flags
 	return in
+}
+
+func lookupDigitScanCode(vk uint16, digit rune) uint16 {
+	sc, _, _ := mapVirtualKeyW.Call(uintptr(vk), uintptr(mapvkVkToVsc))
+	if sc != 0 {
+		return uint16(sc)
+	}
+	// Fallback to standard keyboard top-row digit scan codes.
+	switch digit {
+	case '1':
+		return 0x02
+	case '2':
+		return 0x03
+	case '3':
+		return 0x04
+	case '4':
+		return 0x05
+	case '5':
+		return 0x06
+	case '6':
+		return 0x07
+	case '7':
+		return 0x08
+	case '8':
+		return 0x09
+	case '9':
+		return 0x0A
+	case '0':
+		return 0x0B
+	default:
+		return 0
+	}
 }
