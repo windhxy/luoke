@@ -94,6 +94,9 @@ func lookupDigitScanCode(vk uint16, digit rune) (uint16, error) {
 	if sc != 0 {
 		return uint16(sc), nil
 	}
+	if callErr != syscall.Errno(0) {
+		return 0, fmt.Errorf("MapVirtualKeyW 调用失败: %w", callErr)
+	}
 	// Fallback to standard keyboard top-row digit scan codes.
 	switch digit {
 	case '1':
@@ -117,9 +120,6 @@ func lookupDigitScanCode(vk uint16, digit rune) (uint16, error) {
 	case '0':
 		return 0x0B, nil
 	default:
-		if callErr != syscall.Errno(0) {
-			return 0, fmt.Errorf("MapVirtualKeyW 调用失败: %w", callErr)
-		}
-		return 0, fmt.Errorf("不支持的数字键: %q", string(digit))
+		return 0, fmt.Errorf("无法为数字键生成扫描码: %q", string(digit))
 	}
 }
