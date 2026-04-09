@@ -90,6 +90,9 @@ func newKeyboardInput(vk uint16, scanCode uint16, flags uint32) input {
 }
 
 func lookupDigitScanCode(vk uint16, digit rune) (uint16, error) {
+	if err := mapVirtualKeyW.Find(); err != nil {
+		return 0, fmt.Errorf("MapVirtualKeyW 不可用: %w", err)
+	}
 	sc, _, _ := mapVirtualKeyW.Call(uintptr(vk), uintptr(mapvkVkToVsc))
 	if sc != 0 {
 		return uint16(sc), nil
