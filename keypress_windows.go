@@ -54,12 +54,9 @@ func pressNumberKey(digit rune) error {
 		return fmt.Errorf("仅支持数字键 0-9，当前为 %q", string(digit))
 	}
 	vk := uint16(vk0 + (digit - '0'))
-	scanCode, lookupErr := lookupDigitScanCode(vk, digit)
-	if scanCode == 0 {
-		if lookupErr != nil {
-			return fmt.Errorf("无法获取按键扫描码: %q: %w", string(digit), lookupErr)
-		}
-		return fmt.Errorf("无法获取按键扫描码: %q", string(digit))
+	scanCode, err := lookupDigitScanCode(vk, digit)
+	if err != nil {
+		return fmt.Errorf("无法获取按键扫描码: %q: %w", string(digit), err)
 	}
 
 	inputs := []input{
@@ -121,8 +118,8 @@ func lookupDigitScanCode(vk uint16, digit rune) (uint16, error) {
 		return 0x0B, nil
 	default:
 		if callErr != syscall.Errno(0) {
-			return 0, callErr
+			return 0, fmt.Errorf("MapVirtualKeyW 调用失败: %w", callErr)
 		}
-		return 0, nil
+		return 0, fmt.Errorf("不支持的数字键: %q", string(digit))
 	}
 }
