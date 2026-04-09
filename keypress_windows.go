@@ -10,7 +10,7 @@ import (
 
 const (
 	inputKeyboard  = 1
-	keyeventfKeyup = 0x0002
+	keyeventfKeyUp = 0x0002
 	vk0            = 0x30
 )
 
@@ -49,7 +49,7 @@ func pressNumberKey(digit rune) error {
 			rType: inputKeyboard,
 			ki: keybdInput{
 				wVk:     vk,
-				dwFlags: keyeventfKeyup,
+				dwFlags: keyeventfKeyUp,
 			},
 		},
 	}
@@ -57,7 +57,7 @@ func pressNumberKey(digit rune) error {
 	ret, _, callErr := sendInputProc.Call(
 		uintptr(len(inputs)),
 		uintptr(unsafe.Pointer(&inputs[0])),
-		unsafe.Sizeof(input{}),
+		unsafe.Sizeof(inputs[0]),
 	)
 	if ret == 0 {
 		if callErr != syscall.Errno(0) {
