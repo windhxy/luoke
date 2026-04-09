@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"syscall"
 	"unsafe"
 )
@@ -11,6 +12,8 @@ import (
 const (
 	inputKeyboard  = 1
 	keyeventfKeyUp = 0x0002
+	keyeventfScan  = 0x0008
+	mapvkVkToVsc   = 0
 	vk0            = 0x30
 )
 
@@ -42,8 +45,12 @@ type input struct {
 }
 
 var (
-	user32DLL     = syscall.NewLazyDLL("user32.dll")
-	sendInputProc = user32DLL.NewProc("SendInput")
+	user32DLL      = syscall.NewLazyDLL("user32.dll")
+	sendInputProc  = user32DLL.NewProc("SendInput")
+	mapVirtualKeyW = user32DLL.NewProc("MapVirtualKeyW")
+	ensureMapVK    = sync.OnceValue(func() error {
+		return mapVirtualKeyW.Find()
+	})
 )
 
 func pressNumberKey(digit rune) error {
@@ -51,10 +58,14 @@ func pressNumberKey(digit rune) error {
 		return fmt.Errorf("仅支持数字键 0-9，当前为 %q", string(digit))
 	}
 	vk := uint16(vk0 + (digit - '0'))
+	scanCode, err := lookupDigitScanCode(vk, digit)
+	if err != nil {
+		return fmt.Errorf("无法获取按键扫描码: %q: %w", string(digit), err)
+	}
 
 	inputs := []input{
-		newKeyboardInput(vk, 0),
-		newKeyboardInput(vk, keyeventfKeyUp),
+		newKeyboardInput(vk, scanCode, keyeventfScan),
+		newKeyboardInput(vk, scanCode, keyeventfScan|keyeventfKeyUp),
 	}
 
 	ret, _, callErr := sendInputProc.Call(
@@ -72,11 +83,46 @@ func pressNumberKey(digit rune) error {
 	return nil
 }
 
-func newKeyboardInput(vk uint16, flags uint32) input {
+func newKeyboardInput(vk uint16, scanCode uint16, flags uint32) input {
 	in := input{rType: inputKeyboard}
 	// Safe: data is sized to the largest INPUT union member (mouseInput), larger than keybdInput.
 	ki := (*keybdInput)(unsafe.Pointer(&in.data[0]))
 	ki.wVk = vk
+	ki.wScan = scanCode
 	ki.dwFlags = flags
 	return in
+}
+
+func lookupDigitScanCode(vk uint16, digit rune) (uint16, error) {
+	if err := ensureMapVK(); err != nil {
+		return 0, fmt.Errorf("MapVirtualKeyW 不可用: %w", err)
+	}
+	sc, _, _ := mapVirtualKeyW.Call(uintptr(vk), uintptr(mapvkVkToVsc))
+	if sc != 0 {
+		return uint16(sc), nil
+	}
+	// Fallback to standard keyboard top-row digit scan codes.
+	switch digit {
+	case '1':
+		return 0x02, nil
+	case '2':
+		return 0x03, nil
+	case '3':
+		return 0x04, nil
+	case '4':
+		return 0x05, nil
+	case '5':
+		return 0x06, nil
+	case '6':
+		return 0x07, nil
+	case '7':
+		return 0x08, nil
+	case '8':
+		return 0x09, nil
+	case '9':
+		return 0x0A, nil
+	case '0':
+		return 0x0B, nil
+	}
+	return 0, fmt.Errorf("不支持的数字键: %q", string(digit))
 }
