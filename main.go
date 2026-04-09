@@ -24,7 +24,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("开始定时按键: key=%c interval=%s\n", digit, interval.String())
+	fmt.Printf("开始定时按键: key=%c interval=%s\n", digit, *interval)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)

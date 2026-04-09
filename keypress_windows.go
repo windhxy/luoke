@@ -11,6 +11,7 @@ import (
 const (
 	inputKeyboard  = 1
 	keyeventfKeyup = 0x0002
+	vk0            = 0x30
 )
 
 type keybdInput struct {
@@ -32,7 +33,10 @@ var (
 )
 
 func pressNumberKey(digit rune) error {
-	vk := uint16(digit)
+	if digit < '0' || digit > '9' {
+		return fmt.Errorf("仅支持数字键 0-9，当前为 %q", string(digit))
+	}
+	vk := uint16(vk0 + (digit - '0'))
 
 	inputs := []input{
 		{
