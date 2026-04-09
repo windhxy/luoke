@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 	"syscall"
 	"unsafe"
 )
@@ -47,6 +48,8 @@ var (
 	user32DLL       = syscall.NewLazyDLL("user32.dll")
 	sendInputProc   = user32DLL.NewProc("SendInput")
 	mapVirtualKeyW  = user32DLL.NewProc("MapVirtualKeyW")
+	mapVKFindOnce   sync.Once
+	mapVKFindErr    error
 )
 
 func pressNumberKey(digit rune) error {
@@ -90,10 +93,13 @@ func newKeyboardInput(vk uint16, scanCode uint16, flags uint32) input {
 }
 
 func lookupDigitScanCode(vk uint16, digit rune) (uint16, error) {
-	if err := mapVirtualKeyW.Find(); err != nil {
-		return 0, fmt.Errorf("MapVirtualKeyW 不可用: %w", err)
+	mapVKFindOnce.Do(func() {
+		mapVKFindErr = mapVirtualKeyW.Find()
+	})
+	if mapVKFindErr != nil {
+		return 0, fmt.Errorf("MapVirtualKeyW 不可用: %w", mapVKFindErr)
 	}
-	sc, _, _ := mapVirtualKeyW.Call(uintptr(vk), uintptr(mapvkVkToVsc))
+	sc, _, callErr := mapVirtualKeyW.Call(uintptr(vk), uintptr(mapvkVkToVsc))
 	if sc != 0 {
 		return uint16(sc), nil
 	}
@@ -120,6 +126,9 @@ func lookupDigitScanCode(vk uint16, digit rune) (uint16, error) {
 	case '0':
 		return 0x0B, nil
 	default:
+		if callErr != syscall.Errno(0) {
+			return 0, fmt.Errorf("MapVirtualKeyW 返回 0: %w", callErr)
+		}
 		return 0, fmt.Errorf("不支持的数字键: %q", string(digit))
 	}
 }
