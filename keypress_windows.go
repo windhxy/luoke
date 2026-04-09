@@ -45,11 +45,12 @@ type input struct {
 }
 
 var (
-	user32DLL       = syscall.NewLazyDLL("user32.dll")
-	sendInputProc   = user32DLL.NewProc("SendInput")
-	mapVirtualKeyW  = user32DLL.NewProc("MapVirtualKeyW")
-	mapVKOnce       sync.Once
-	mapVKErr        error
+	user32DLL      = syscall.NewLazyDLL("user32.dll")
+	sendInputProc  = user32DLL.NewProc("SendInput")
+	mapVirtualKeyW = user32DLL.NewProc("MapVirtualKeyW")
+	ensureMapVK    = sync.OnceValue(func() error {
+		return mapVirtualKeyW.Find()
+	})
 )
 
 func pressNumberKey(digit rune) error {
@@ -93,18 +94,12 @@ func newKeyboardInput(vk uint16, scanCode uint16, flags uint32) input {
 }
 
 func lookupDigitScanCode(vk uint16, digit rune) (uint16, error) {
-	mapVKOnce.Do(func() {
-		mapVKErr = mapVirtualKeyW.Find()
-	})
-	if mapVKErr != nil {
-		return 0, fmt.Errorf("MapVirtualKeyW 不可用: %w", mapVKErr)
+	if err := ensureMapVK(); err != nil {
+		return 0, fmt.Errorf("MapVirtualKeyW 不可用: %w", err)
 	}
-	sc, _, callErr := mapVirtualKeyW.Call(uintptr(vk), uintptr(mapvkVkToVsc))
+	sc, _, _ := mapVirtualKeyW.Call(uintptr(vk), uintptr(mapvkVkToVsc))
 	if sc != 0 {
 		return uint16(sc), nil
-	}
-	if callErr != syscall.Errno(0) {
-		return 0, fmt.Errorf("MapVirtualKeyW 返回 0: %w", callErr)
 	}
 	// Fallback to standard keyboard top-row digit scan codes.
 	switch digit {
@@ -128,7 +123,6 @@ func lookupDigitScanCode(vk uint16, digit rune) (uint16, error) {
 		return 0x0A, nil
 	case '0':
 		return 0x0B, nil
-	default:
-		return 0, fmt.Errorf("不支持的数字键: %q", string(digit))
 	}
+	return 0, fmt.Errorf("不支持的数字键: %q", string(digit))
 }
